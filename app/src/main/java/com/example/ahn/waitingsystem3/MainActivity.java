@@ -3,6 +3,32 @@ package com.example.ahn.waitingsystem3;
 
 import java.util.List;
 
+import android.app.Activity;
+import android.app.ProgressDialog;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.util.Log;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpVersion;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
+import org.apache.http.params.HttpConnectionParams;
+import org.apache.http.params.HttpParams;
+import org.apache.http.params.HttpProtocolParams;
+import org.apache.http.protocol.HTTP;
+import org.apache.http.util.EntityUtils;
+import java.util.ArrayList;
+
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import java.net.MalformedURLException;
+
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -15,7 +41,6 @@ import android.nfc.tech.NfcA;
 import android.nfc.tech.NfcB;
 import android.nfc.tech.NfcF;
 import android.nfc.tech.NfcV;
-import android.os.Bundle;
 import android.os.Parcelable;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.TextView;
@@ -28,6 +53,11 @@ import com.example.ahn.waitingsystem3.UriRecord;
 
 public class MainActivity extends AppCompatActivity {
     TextView readResult;
+    private EditText data2, data3;
+    private Button btn_send;
+
+    private ProgressDialog pDialog;
+
 
     private NfcAdapter mAdapter;
     private PendingIntent mPendingIntent;
@@ -86,10 +116,35 @@ public class MainActivity extends AppCompatActivity {
          * 어떠한 기술을 쓸지 정의해준다.
          */
         mTechLists = new String[][] { new String[] { NfcA.class.getName() } };
+
+        ////////////////////////////////////////////////////////////////////////////////아래론 php연동
+        NetworkUtil.setNetworkPolicy();
+
+        data2 = (EditText)findViewById(R.id.editText2);
+        data3 = (EditText)findViewById(R.id.editText3);
+        btn_send = (Button)findViewById(R.id.btn_send);
+        btn_send.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    PHPRequest request = new PHPRequest("http://192.168.219.103/Data_insert.php");
+                    String result = request.PhPtest(String.valueOf(data2.getText()),String.valueOf(data3.getText()));
+                    if(result.equals("1")){
+                        Toast.makeText(getApplication(),"들어감",Toast.LENGTH_SHORT).show();
+                    }
+                    else{
+                        Toast.makeText(getApplication(),"안 들어감",Toast.LENGTH_SHORT).show();
+                    }
+                }catch (MalformedURLException e){
+                    e.printStackTrace();
+                }
+            }
+        });
+
     }
 
 
-    @Override
+        @Override
     protected void onResume() {
         // TODO Auto-generated method stub
         super.onResume();
@@ -101,6 +156,20 @@ public class MainActivity extends AppCompatActivity {
      */
             mAdapter.enableForegroundDispatch(this, mPendingIntent, mFilters,
                     mTechLists);
+//////////////////////////////////////////////////////////////////////////////////////////////////
+            try {
+                PHPRequest request = new PHPRequest("http://172.16.16.41/Data_insert.php");
+                String result = request.PhPtest(String.valueOf(data2.getText()),String.valueOf(data3.getText()));
+                if(result.equals("1")){
+                    Toast.makeText(getApplication(),"들어감",Toast.LENGTH_SHORT).show();
+                }
+                else{
+                    Toast.makeText(getApplication(),"안 들어감",Toast.LENGTH_SHORT).show();
+                }
+            }catch (MalformedURLException e){
+                e.printStackTrace();
+            }
+/////////////////////////////////////////////////////////////////////////////////////////////////
         }
     }
 
@@ -129,6 +198,7 @@ public class MainActivity extends AppCompatActivity {
          **/
             byte[] tagId = tag.getId();
             readResult.append("태그 ID : " + toHexString(tagId) + "\n");
+            data2.setText(toHexString(tagId));
         }
         if (passedIntent != null) {
             processTag(passedIntent);
@@ -210,7 +280,69 @@ public class MainActivity extends AppCompatActivity {
             }
             // 읽어들인 텍스트 값을 TextView에 붙인다.
             readResult.append(recordStr + "\n");
+            data2.append(recordStr);
         }
         return size;
+    }
+//////////////////////////////////////////////////////////////////////////////////////////////http 커넥트
+    class getList extends AsyncTask<Void, String, Void> {
+        String LoadData;
+
+        @Override
+        protected void onPreExecute() {
+            pDialog = new ProgressDialog(MainActivity.this);
+            pDialog.setMessage("검색중입니다..");
+            pDialog.setCancelable(false);
+            pDialog.show();
+            super.onPreExecute();
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            try {
+                HttpParams httpParameters = new BasicHttpParams();
+                HttpProtocolParams.setVersion(httpParameters, HttpVersion.HTTP_1_1);
+
+                HttpClient client = new DefaultHttpClient(httpParameters);
+
+                HttpConnectionParams.setConnectionTimeout(httpParameters, 7000);
+                HttpConnectionParams.setSoTimeout(httpParameters, 7000);
+                HttpConnectionParams.setTcpNoDelay(httpParameters, true);
+
+                // 주소
+                String postURL = "http://210.105.203.225:8080/yoohyeok/DBConnection";
+
+                HttpPost post = new HttpPost(postURL);
+                ArrayList<NameValuePair> params = new ArrayList<NameValuePair>();
+
+//                params.add(new BasicNameValuePair("ProjectID", PID));
+//                params.add(new BasicNameValuePair("Itemleft", IL));
+//                params.add(new BasicNameValuePair("Itemright", IR));
+
+                UrlEncodedFormEntity ent = new UrlEncodedFormEntity(params, HTTP.UTF_8);
+                post.setEntity(ent);
+
+                long startTime = System.currentTimeMillis();
+
+                HttpResponse responsePOST = client.execute(post);
+
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                Log.v("debugging", elapsedTime + " ");
+
+                HttpEntity resEntity = responsePOST.getEntity();
+                if (resEntity != null) {
+                    LoadData = EntityUtils.toString(resEntity, HTTP.UTF_8);
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            pDialog.dismiss();
+        }
     }
 } //  메인액티비티 끝

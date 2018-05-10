@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">WaitingSystem3</string>
+    <string name="nfc">NFCID : </string>
 </resources>
